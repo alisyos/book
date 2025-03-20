@@ -7,46 +7,59 @@ export async function POST(request: Request) {
     const { messages } = await request.json();
     const openai = getOpenAIClient();
 
-    const evaluationPrompt = `당신은 아동 교육 전문가입니다. 다음 대화를 분석하여 학생의 학습 상태를 평가해주세요.
+    // 메시지 역할별로 구분
+    const userMessages = messages.filter((msg: any) => msg.role === 'user');
+    const assistantMessages = messages.filter((msg: any) => msg.role === 'assistant');
+
+    // 대화 내용을 역할별로 명확히 구분
+    const conversationHistory = messages.map((msg: any, index: number) => {
+      const roleLabel = msg.role === 'user' ? '학생' : 'AI 선생님';
+      return `${roleLabel}: ${msg.content}`;
+    }).join('\n');
+
+    const evaluationPrompt = `당신은 아동 교육 전문가입니다. 다음 대화에서 오직 학생의 답변만 분석하여 학습 상태를 평가해주세요.
+AI 선생님의 답변은 참고용으로만 사용하고, 학생의 답변만을 평가 대상으로 삼아주세요.
+
 아래 형식을 정확히 지켜서 답변해주세요. 형식을 엄격하게 준수해야 합니다:
 
 1. 독해력 (텍스트 이해도, 핵심 내용 파악 능력)
-점수: 7
+점수: [1-10 사이의 점수]
 평가:
-학생은 텍스트의 주요 내용을 잘 파악하고 있습니다.
-
+[학생의 독해력에 대한 평가]
 개선점:
-좀 더 세부적인 내용에 주목하면 더 좋을 것 같습니다.
+[독해력 향상을 위한 제안]
 
 2. 논리적 사고 (추론 능력, 분석력)
-점수: 8
+점수: [1-10 사이의 점수]
 평가:
-학생은 논리적으로 문제를 분석하는 능력이 뛰어납니다.
-
+[학생의 논리적 사고에 대한 평가]
 개선점:
-더 다양한 관점에서 생각해보는 연습을 하면 좋겠습니다.
+[논리적 사고 향상을 위한 제안]
 
 3. 창의적 표현 (독창성, 표현력)
-점수: 6
+점수: [1-10 사이의 점수]
 평가:
-자신의 생각을 표현하는 데 어느 정도 능숙합니다.
-
+[학생의 창의적 표현에 대한 평가]
 개선점:
-더 다양한 표현 방법을 시도해보면 좋겠습니다.
+[창의적 표현 향상을 위한 제안]
 
 4. 참여도 (적극성, 열정)
-점수: 9
+점수: [1-10 사이의 점수]
 평가:
-대화에 매우 적극적으로 참여하고 있습니다.
-
+[학생의 참여도에 대한 평가]
 개선점:
-가끔 너무 빠르게 답변하려고 하는 경향이 있습니다.
+[참여도 향상을 위한 제안]
 
 종합 평가:
-전반적으로 우수한 학습 태도를 보이고 있으며, 특히 참여도가 높습니다.
+[전체적인 학습 상태에 대한 종합 평가 및 향후 발전을 위한 조언]
+
+학생의 답변 수: ${userMessages.length}개
+AI 선생님의 답변 수: ${assistantMessages.length}개
 
 대화 내용:
-${messages.map((msg: any) => `${msg.role}: ${msg.content}`).join('\\n')}`;
+${conversationHistory}`;
+
+    console.log("평가 요청 프롬프트:", evaluationPrompt);
 
     const completion = await openai.chat.completions.create({
       messages: [{ role: 'user', content: evaluationPrompt }],
