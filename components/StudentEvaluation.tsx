@@ -185,73 +185,163 @@ export default function StudentEvaluation({ messages }: StudentEvaluationProps) 
   };
 
   return (
-    <div className="bg-white shadow-lg rounded-lg p-6 h-full flex flex-col">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">학습 평가</h2>
-        <button
-          onClick={analyzeMessages}
-          disabled={messages.length === 0 || isLoading}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 transition-colors"
-        >
-          {isLoading ? '평가 중...' : '평가하기'}
-        </button>
+    <div className="flex flex-col h-full">
+      {/* 평가 헤더 */}
+      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-4 px-6 rounded-t-xl shadow-sm">
+        <div className="flex items-center">
+          <div className="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-3 shadow-md">
+            <i className="fas fa-chart-line text-white"></i>
+          </div>
+          <div>
+            <h3 className="font-medium text-lg">학습 평가 리포트</h3>
+            <p className="text-xs text-indigo-100">AI가 분석한 실시간 학습 상태 평가</p>
+          </div>
+          <div className="ml-auto">
+            <button
+              onClick={analyzeMessages}
+              disabled={messages.length === 0 || isLoading}
+              className="px-4 py-2 bg-white text-indigo-600 rounded-lg hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-medium shadow-md flex items-center"
+            >
+              {isLoading ? (
+                <>
+                  <i className="fas fa-spinner fa-spin mr-2"></i>
+                  평가 중...
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-brain mr-2"></i>
+                  평가하기
+                </>
+              )}
+            </button>
+          </div>
+        </div>
       </div>
 
-      {!isEvaluated && !isLoading && (
-        <div className="flex-1 flex items-center justify-center text-gray-500">
-          평가하기 버튼을 클릭하여 학습 평가를 시작하세요.
-        </div>
-      )}
+      {/* 평가 컨텐츠 영역 */}
+      <div className="flex-1 overflow-y-auto bg-gradient-to-b from-purple-50 to-white p-6">
+        {!isEvaluated && !isLoading && (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <div className="w-24 h-24 bg-indigo-100 rounded-full flex items-center justify-center mb-4 animate-pulse">
+              <i className="fas fa-lightbulb text-indigo-400 text-3xl"></i>
+            </div>
+            <h3 className="text-xl font-bold text-gray-700 mb-2">학습 평가를 시작해보세요</h3>
+            <p className="text-gray-500 max-w-md">
+              대화가 충분히 진행된 후 평가하기 버튼을 클릭하여 AI가 분석한 학습 상태를 확인하세요.
+            </p>
+          </div>
+        )}
 
-      {isLoading && (
-        <div className="flex-1 flex items-center justify-center text-gray-500">
-          학습 상태를 평가하고 있습니다...
-        </div>
-      )}
+        {isLoading && (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <div className="w-24 h-24 bg-indigo-100 rounded-full flex items-center justify-center mb-4 relative">
+              <div className="absolute inset-0 rounded-full border-4 border-indigo-300 border-t-indigo-600 animate-spin"></div>
+              <i className="fas fa-brain text-indigo-400 text-3xl"></i>
+            </div>
+            <h3 className="text-xl font-bold text-gray-700 mb-2">학습 상태 분석 중</h3>
+            <p className="text-gray-500 max-w-md">
+              AI가 대화 내용을 분석하여 학습 상태를 평가하고 있습니다. 잠시만 기다려주세요.
+            </p>
+          </div>
+        )}
 
-      {isEvaluated && !isLoading && (
-        <>
-          <div className="flex-1 overflow-y-auto">
-            <div className="space-y-6 mb-6">
+        {isEvaluated && !isLoading && (
+          <div className="animate-fadeIn">
+            <div className="mb-8">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                {evaluations.map((evaluation, index) => {
+                  // 점수별 색상 설정
+                  const getScoreColor = (score: number) => {
+                    if (score >= 8) return 'from-green-500 to-green-600';
+                    if (score >= 6) return 'from-blue-500 to-blue-600';
+                    if (score >= 4) return 'from-yellow-500 to-yellow-600';
+                    return 'from-red-500 to-red-600';
+                  };
+                  
+                  return (
+                    <div key={index} className="bg-white rounded-xl shadow-md p-4 hover:shadow-lg transition-shadow">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-medium text-gray-500">{evaluation.category}</h4>
+                        <div className={`w-10 h-10 rounded-full bg-gradient-to-r ${getScoreColor(evaluation.score)} text-white flex items-center justify-center shadow-sm`}>
+                          <span className="text-sm font-bold">{evaluation.score}</span>
+                        </div>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full mb-2">
+                        <div
+                          className={`h-full rounded-full bg-gradient-to-r ${getScoreColor(evaluation.score)} transition-all duration-1000`}
+                          style={{ width: `${evaluation.score * 10}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            
+            <div className="space-y-6">
               {evaluations.map((evaluation, index) => (
-                <div key={index} className="border-b pb-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-lg font-semibold text-gray-700">{evaluation.category}</h3>
+                <div key={index} className="bg-white rounded-xl shadow-md overflow-hidden">
+                  <div className="bg-gradient-to-r from-gray-50 to-white p-4 border-b border-gray-100">
                     <div className="flex items-center">
-                      <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                        <span className="text-xl font-bold text-blue-600">{evaluation.score}</span>
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center mr-3">
+                        <i className={`fas ${
+                          index === 0 ? 'fa-book-reader' : 
+                          index === 1 ? 'fa-brain' : 
+                          index === 2 ? 'fa-paint-brush' : 
+                          'fa-hands-helping'
+                        } text-indigo-500 text-xs`}></i>
+                      </div>
+                      <h3 className="font-semibold text-gray-700">{evaluation.category}</h3>
+                      <div className="ml-auto">
+                        <span className="px-3 py-1 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white rounded-full text-xs font-medium">
+                          {evaluation.score}/10점
+                        </span>
                       </div>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-600">평가</h4>
-                      <p className="text-gray-600 text-sm whitespace-pre-wrap">{evaluation.evaluation}</p>
+                  <div className="p-5">
+                    <div className="mb-4">
+                      <h4 className="text-sm font-medium text-indigo-600 mb-2 flex items-center">
+                        <i className="fas fa-check-circle mr-1"></i> 평가
+                      </h4>
+                      <p className="text-gray-700 text-sm bg-indigo-50 p-3 rounded-lg whitespace-pre-wrap">{evaluation.evaluation}</p>
                     </div>
                     <div>
-                      <h4 className="text-sm font-medium text-gray-600">개선점</h4>
-                      <p className="text-gray-600 text-sm whitespace-pre-wrap">{evaluation.improvement}</p>
+                      <h4 className="text-sm font-medium text-purple-600 mb-2 flex items-center">
+                        <i className="fas fa-lightbulb mr-1"></i> 개선점
+                      </h4>
+                      <p className="text-gray-700 text-sm bg-purple-50 p-3 rounded-lg whitespace-pre-wrap">{evaluation.improvement}</p>
                     </div>
-                  </div>
-                  <div className="mt-2 bg-gray-200 h-2 rounded-full">
-                    <div
-                      className="bg-blue-500 h-full rounded-full transition-all duration-500"
-                      style={{ width: `${evaluation.score * 10}%` }}
-                    />
                   </div>
                 </div>
               ))}
-            </div>
 
-            <div className="border-t pt-4">
-              <h3 className="text-lg font-semibold text-gray-700 mb-3">종합 평가</h3>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-gray-600 whitespace-pre-wrap">{comment}</p>
+              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl shadow-lg overflow-hidden">
+                <div className="px-6 py-4 text-white">
+                  <div className="flex items-center mb-1">
+                    <i className="fas fa-star mr-2"></i>
+                    <h3 className="text-lg font-semibold">종합 평가</h3>
+                  </div>
+                  <div className="h-1 w-24 bg-white bg-opacity-30 rounded-full"></div>
+                </div>
+                <div className="bg-white p-5">
+                  <p className="text-gray-700 whitespace-pre-wrap">{comment}</p>
+                </div>
               </div>
             </div>
           </div>
-        </>
-      )}
+        )}
+      </div>
+
+      <style jsx global>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.5s ease-out forwards;
+        }
+      `}</style>
     </div>
   );
 } 
