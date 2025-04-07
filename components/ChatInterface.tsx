@@ -28,6 +28,7 @@ export default function ChatInterface({ onMessagesUpdate }: ChatInterfaceProps) 
   const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const { displayedText, isComplete } = useTypingEffect(streamingResponse, 15);
   const [pendingAssistantMessage, setPendingAssistantMessage] = useState<string | null>(null);
 
@@ -233,6 +234,11 @@ export default function ChatInterface({ onMessagesUpdate }: ChatInterfaceProps) 
       setStreamingResponse('');
       setIsStreaming(false);
       setIsLoading(false);
+      
+      // 입력창에 포커스 설정
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
     }
   }, [isComplete, pendingAssistantMessage, displayedText, onMessagesUpdate]);
 
@@ -329,26 +335,25 @@ export default function ChatInterface({ onMessagesUpdate }: ChatInterfaceProps) 
       </div>
 
       {/* 입력 영역 */}
-      <div className="border-t border-gray-100 px-4 py-3 bg-white rounded-b-xl">
+      <div className="border-t border-gray-200 p-4 bg-white rounded-b-xl">
         <form onSubmit={handleSubmit} className="flex items-center">
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="무엇이든 물어보세요..."
-              className="w-full p-3 pr-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 transition-all"
-              disabled={isLoading}
-            />
-            <button
-              type="button"
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              onClick={() => setInput('')}
-              disabled={!input || isLoading}
-            >
-              <i className="fas fa-times-circle"></i>
-            </button>
-          </div>
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="메시지를 입력하세요..."
+            className="flex-1 border-2 border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 resize-none"
+            rows={1}
+            disabled={isLoading}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (!isLoading && input.trim()) {
+                  handleSubmit(e);
+                }
+              }
+            }}
+          ></textarea>
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
