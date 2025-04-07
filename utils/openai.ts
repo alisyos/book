@@ -60,6 +60,17 @@ export async function getMessages(threadId: string) {
   }
 }
 
+export async function getPartialMessages(threadId: string) {
+  try {
+    // getMessages와 동일하지만, 진행 중인 응답도 가져옵니다
+    const messages = await openai.beta.threads.messages.list(threadId);
+    return messages.data;
+  } catch (error) {
+    console.error('부분 메시지 조회 중 에러:', error);
+    throw error;
+  }
+}
+
 export async function checkRunStatus(threadId: string, runId: string) {
   try {
     const run = await openai.beta.threads.runs.retrieve(threadId, runId);

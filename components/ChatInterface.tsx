@@ -297,28 +297,14 @@ export default function ChatInterface({ onMessagesUpdate }: ChatInterfaceProps) 
             <div className="flex justify-start animate-fadeIn" ref={streamingRef}>
               <div className="max-w-[80%] p-4 rounded-2xl shadow-sm bg-white rounded-tl-none border border-gray-100">
                 <div className="flex items-center mb-2">
-                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-2">
-                    <i className="fas fa-robot text-blue-500 text-xs"></i>
+                  <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center mr-2 text-white text-xs">
+                    AI
                   </div>
-                  <span className="text-xs font-medium text-blue-500">AI 선생님</span>
+                  <span className="text-blue-500 font-medium text-sm">선생님</span>
                 </div>
-                <div className="prose max-w-none text-gray-700">
-                  <ReactMarkdown>
-                    {displayedText}
-                  </ReactMarkdown>
-                </div>
-                <div className="text-right mt-1">
-                  <span className="text-xs text-gray-400 mr-2">
-                    {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                  <span className="inline-block w-5">
-                    <span className="typing-indicator">
-                      <span className="dot"></span>
-                      <span className="dot"></span>
-                      <span className="dot"></span>
-                    </span>
-                  </span>
-                </div>
+                <ReactMarkdown className="prose prose-sm max-w-none text-gray-700">
+                  {displayedText}
+                </ReactMarkdown>
               </div>
             </div>
           )}
