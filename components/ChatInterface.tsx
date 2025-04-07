@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { useTypingEffect } from '../hooks/useTypingEffect';
 
 export interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -23,7 +24,12 @@ export default function ChatInterface({ onMessagesUpdate }: ChatInterfaceProps) 
   const [isLoading, setIsLoading] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [isFirstMessage, setIsFirstMessage] = useState(true);
+  const [streamingResponse, setStreamingResponse] = useState<string>('');
+  const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const streamingRef = useRef<HTMLDivElement>(null);
+  const { displayedText, isComplete } = useTypingEffect(streamingResponse, 15);
+  const [pendingAssistantMessage, setPendingAssistantMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const initThread = async () => {
@@ -45,12 +51,17 @@ export default function ChatInterface({ onMessagesUpdate }: ChatInterfaceProps) 
   }, []);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isStreaming && streamingRef.current) {
+      streamingRef.current.scrollIntoView({ behavior: 'smooth' });
+    } else if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
+  // 메시지 목록이 업데이트되거나 타이핑 효과가 진행될 때 스크롤 내리기
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, displayedText]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,6 +79,8 @@ export default function ChatInterface({ onMessagesUpdate }: ChatInterfaceProps) 
     setInput('');
 
     try {
+      let runId = '';
+      
       if (isFirstMessage) {
         // 첫 번째 메시지인 경우, 초기 메시지와 사용자 메시지를 연결하여 전송
         const combinedMessage = `${INITIAL_MESSAGE.content}\n\n사용자: ${input}`;
@@ -85,29 +98,8 @@ export default function ChatInterface({ onMessagesUpdate }: ChatInterfaceProps) 
         if (!sendData.runId) {
           throw new Error('실행 ID를 받지 못했습니다.');
         }
-
-        // 실행 완료 대기
-        while (true) {
-          const statusResponse = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'checkStatus',
-              threadId,
-              runId: sendData.runId
-            })
-          });
-          const statusData = await statusResponse.json();
-
-          if (statusData.status.status === 'completed') {
-            break;
-          } else if (statusData.status.status === 'failed') {
-            throw new Error('Assistant 실행 실패');
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-
+        
+        runId = sendData.runId;
         setIsFirstMessage(false);
       } else {
         // 첫 번째 메시지가 아닌 경우, 일반적인 메시지 전송
@@ -125,31 +117,64 @@ export default function ChatInterface({ onMessagesUpdate }: ChatInterfaceProps) 
         if (!sendData.runId) {
           throw new Error('실행 ID를 받지 못했습니다.');
         }
-
-        // 실행 완료 대기
-        while (true) {
-          const statusResponse = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'checkStatus',
-              threadId,
-              runId: sendData.runId
-            })
-          });
-          const statusData = await statusResponse.json();
-
-          if (statusData.status.status === 'completed') {
-            break;
-          } else if (statusData.status.status === 'failed') {
-            throw new Error('Assistant 실행 실패');
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
+        
+        runId = sendData.runId;
       }
 
-      // 모든 메시지 가져오기
+      // 스트리밍 응답 시작
+      setIsStreaming(true);
+      setStreamingResponse('');
+      
+      // 상태 확인 및 스트리밍 처리
+      let isCompleted = false;
+      let previousContent = '';
+      
+      while (!isCompleted) {
+        const statusResponse = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'checkStatus',
+            threadId,
+            runId
+          })
+        });
+        const statusData = await statusResponse.json();
+
+        if (statusData.status.status === 'completed') {
+          isCompleted = true;
+        } else if (statusData.status.status === 'failed') {
+          throw new Error('Assistant 실행 실패');
+        } else {
+          // 아직 완료되지 않은 경우 진행중인 응답을 가져오기
+          try {
+            const partialResponse = await fetch('/api/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'getPartialResponse',
+                threadId,
+                runId,
+                timestamp: Date.now()
+              })
+            });
+            const partialData = await partialResponse.json();
+            
+            if (partialData.content && partialData.content !== previousContent) {
+              console.log('새 응답 받음:', partialData.content.length, '이전:', previousContent.length);
+              previousContent = partialData.content;
+              setStreamingResponse(partialData.content);
+            }
+          } catch (error) {
+            console.error('부분 응답 가져오기 실패:', error);
+          }
+        }
+        
+        // 업데이트 간격을 줄임
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      // 최종 메시지 가져오기
       const messagesResponse = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -168,13 +193,14 @@ export default function ChatInterface({ onMessagesUpdate }: ChatInterfaceProps) 
             latestMessage.content && 
             latestMessage.content[0] && 
             'text' in latestMessage.content[0]) {
-          const assistantMessage: Message = {
-            role: 'assistant',
-            content: latestMessage.content[0].text.value
-          };
-          const newMessages = [...updatedMessages, assistantMessage];
-          setMessages(newMessages);
-          onMessagesUpdate?.(newMessages);
+          
+          const assistantContent = latestMessage.content[0].text.value;
+          
+          // 타이핑 효과를 위해 상태 설정
+          if (streamingResponse !== assistantContent) {
+            setStreamingResponse(assistantContent);
+            setPendingAssistantMessage(assistantContent);
+          }
         }
       }
       
@@ -183,8 +209,32 @@ export default function ChatInterface({ onMessagesUpdate }: ChatInterfaceProps) 
       console.error('Error:', error);
       alert('메시지 전송 중 오류가 발생했습니다.');
       setIsLoading(false);
+      setIsStreaming(false);
     }
   };
+
+  // 타이핑이 완료되면 메시지 목록에 추가
+  useEffect(() => {
+    if (isComplete && pendingAssistantMessage && displayedText === pendingAssistantMessage) {
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: pendingAssistantMessage
+      };
+      
+      setMessages(prevMessages => {
+        const newMessages = [...prevMessages, assistantMessage];
+        // onMessagesUpdate 호출은 새 메시지 배열로 직접 전달
+        onMessagesUpdate?.(newMessages);
+        return newMessages;
+      });
+      
+      // 상태 초기화
+      setPendingAssistantMessage(null);
+      setStreamingResponse('');
+      setIsStreaming(false);
+      setIsLoading(false);
+    }
+  }, [isComplete, pendingAssistantMessage, displayedText, onMessagesUpdate]);
 
   return (
     <div className="flex flex-col h-full">
@@ -241,7 +291,40 @@ export default function ChatInterface({ onMessagesUpdate }: ChatInterfaceProps) 
               </div>
             </div>
           ))}
-          {isLoading && (
+          
+          {/* 스트리밍 응답 표시 */}
+          {isStreaming && (
+            <div className="flex justify-start animate-fadeIn" ref={streamingRef}>
+              <div className="max-w-[80%] p-4 rounded-2xl shadow-sm bg-white rounded-tl-none border border-gray-100">
+                <div className="flex items-center mb-2">
+                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-2">
+                    <i className="fas fa-robot text-blue-500 text-xs"></i>
+                  </div>
+                  <span className="text-xs font-medium text-blue-500">AI 선생님</span>
+                </div>
+                <div className="prose max-w-none text-gray-700">
+                  <ReactMarkdown>
+                    {displayedText}
+                  </ReactMarkdown>
+                </div>
+                <div className="text-right mt-1">
+                  <span className="text-xs text-gray-400 mr-2">
+                    {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <span className="inline-block w-5">
+                    <span className="typing-indicator">
+                      <span className="dot"></span>
+                      <span className="dot"></span>
+                      <span className="dot"></span>
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* 로딩 표시 (스트리밍이 없을 때만) */}
+          {isLoading && !isStreaming && (
             <div className="flex justify-start animate-fadeIn">
               <div className="bg-white p-4 rounded-2xl rounded-tl-none shadow-sm border border-gray-100 flex items-center space-x-2">
                 <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
@@ -305,6 +388,30 @@ export default function ChatInterface({ onMessagesUpdate }: ChatInterfaceProps) 
         }
         .animate-slightBounce {
           animation: slightBounce 1s infinite;
+        }
+        .typing-indicator {
+          display: inline-flex;
+          align-items: center;
+        }
+        .typing-indicator .dot {
+          display: inline-block;
+          width: 4px;
+          height: 4px;
+          border-radius: 50%;
+          background-color: #3b82f6;
+          margin: 0 1px;
+          animation: typing 1.4s infinite both;
+        }
+        .typing-indicator .dot:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+        .typing-indicator .dot:nth-child(3) {
+          animation-delay: 0.4s;
+        }
+        @keyframes typing {
+          0% { opacity: 0.2; transform: translateY(0); }
+          50% { opacity: 1; transform: translateY(-2px); }
+          100% { opacity: 0.2; transform: translateY(0); }
         }
       `}</style>
     </div>
